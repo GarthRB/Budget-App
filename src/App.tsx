@@ -24,6 +24,7 @@ export function App() {
           <BudgetAllocation
             netMonthly={state.salary?.netMonthly ?? 0}
             categories={state.categories}
+            debts={state.debts}
             onSetCategories={setCategories}
           />
         );

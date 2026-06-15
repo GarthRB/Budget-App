@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { BudgetCategory, BudgetCategoryType } from '../types';
+import { BudgetCategory, BudgetCategoryType, Debt } from '../types';
 import { getDefaultCategories, getTotalByType } from '../utils/budget';
 import { Plus, Trash2 } from 'lucide-react';
 
 interface BudgetAllocationProps {
   netMonthly: number;
   categories: BudgetCategory[];
+  debts: Debt[];
   onSetCategories: (cats: BudgetCategory[]) => void;
 }
 
@@ -21,7 +22,7 @@ const typeLabels: Record<BudgetCategoryType, string> = {
   savings: '💰 Savings (20%)',
 };
 
-export function BudgetAllocation({ netMonthly, categories, onSetCategories }: BudgetAllocationProps) {
+export function BudgetAllocation({ netMonthly, categories, debts, onSetCategories }: BudgetAllocationProps) {
   const [cats, setCats] = useState<BudgetCategory[]>(() =>
     categories.length > 0 ? categories : getDefaultCategories(netMonthly)
   );
@@ -29,7 +30,9 @@ export function BudgetAllocation({ netMonthly, categories, onSetCategories }: Bu
   const [showAdd, setShowAdd] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const totalAllocated = cats.reduce((s, c) => s + c.budgetedAmount, 0);
+  const activeDebts = debts.filter(d => d.balance > 0);
+  const totalDebtPayments = activeDebts.reduce((s, d) => s + d.minimumPayment, 0);
+  const totalAllocated = cats.reduce((s, c) => s + c.budgetedAmount, 0) + totalDebtPayments;
   const remaining = netMonthly - totalAllocated;
 
   const updateAmount = (id: string, value: string) => {
@@ -116,6 +119,27 @@ export function BudgetAllocation({ netMonthly, categories, onSetCategories }: Bu
           </div>
         );
       })}
+      {activeDebts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-white">💳 Debt Payments (auto)</h2>
+            <span className="text-sm text-red-400">£{totalDebtPayments.toFixed(0)} ({netMonthly > 0 ? (totalDebtPayments / netMonthly * 100).toFixed(0) : 0}%)</span>
+          </div>
+          <p className="text-xs text-gray-500">Minimum payments are automatically included in your budget.</p>
+          <div className="space-y-2">
+            {activeDebts.map(debt => (
+              <div key={debt.id} className="bg-gray-900 border border-red-900/50 rounded-xl p-4 flex items-center gap-3">
+                <span className="text-2xl">💳</span>
+                <div className="flex-1">
+                  <div className="text-white font-medium">{debt.name}</div>
+                  <div className="text-xs text-gray-400">{debt.interestRate}% APR · Balance: £{debt.balance.toFixed(0)}</div>
+                </div>
+                <div className="text-red-400 font-semibold">£{debt.minimumPayment.toFixed(0)}/mo</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {showAdd ? (
         <div className="bg-gray-900 border border-purple-800 rounded-xl p-4 space-y-3">
           <h3 className="font-medium text-white">New Category</h3>
