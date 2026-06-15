@@ -7,20 +7,24 @@ import { DebtTracker } from './pages/DebtTracker';
 import { MonthlyTracker } from './pages/MonthlyTracker';
 import { Achievements } from './pages/Achievements';
 
-export default function App() {
-  const store = useAppStore();
-  const { state } = store;
+export function App() {
+  const {
+    state, navigate, xpToast, dismissToast,
+    setSalary, setCategories,
+    addDebt, removeDebt, addDebtPayment, setDebtStrategy,
+    setMonthlyEntry, completeMonth,
+  } = useAppStore();
 
-  const renderPage = () => {
+  function renderPage() {
     switch (state.currentPage) {
       case 'salary':
-        return <SalarySetup current={state.salary} onSave={store.setSalary} />;
+        return <SalarySetup current={state.salary} onSave={setSalary} />;
       case 'budget':
         return (
           <BudgetAllocation
             netMonthly={state.salary?.netMonthly ?? 0}
             categories={state.categories}
-            onSetCategories={store.setCategories}
+            onSetCategories={setCategories}
           />
         );
       case 'debt':
@@ -28,10 +32,10 @@ export default function App() {
           <DebtTracker
             debts={state.debts}
             strategy={state.debtStrategy}
-            onAddDebt={store.addDebt}
-            onRemoveDebt={store.removeDebt}
-            onAddPayment={store.addDebtPayment}
-            onSetStrategy={store.setDebtStrategy}
+            onAddDebt={addDebt}
+            onRemoveDebt={removeDebt}
+            onAddPayment={addDebtPayment}
+            onSetStrategy={setDebtStrategy}
           />
         );
       case 'monthly':
@@ -40,26 +44,25 @@ export default function App() {
             categories={state.categories}
             monthlyEntries={state.monthlyEntries}
             monthRecords={state.monthRecords}
-            onSetEntry={store.setMonthlyEntry}
-            onCompleteMonth={store.completeMonth}
+            onSetEntry={setMonthlyEntry}
+            onCompleteMonth={completeMonth}
           />
         );
       case 'achievements':
         return <Achievements achievements={state.achievements} xp={state.xp} />;
-      case 'dashboard':
       default:
-        return <Dashboard state={state} onNavigate={store.navigate} />;
+        return <Dashboard state={state} onNavigate={navigate} />;
     }
-  };
+  }
 
   return (
     <Layout
       currentPage={state.currentPage}
-      onNavigate={store.navigate}
+      onNavigate={navigate}
       xp={state.xp}
       level={state.level}
-      xpToast={store.xpToast}
-      onDismissToast={store.dismissToast}
+      xpToast={xpToast}
+      onDismissToast={dismissToast}
     >
       {renderPage()}
     </Layout>
