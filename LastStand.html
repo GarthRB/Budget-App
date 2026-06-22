@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0f0f1a" />
+    <title>🏰 Last Stand — Survival Defense</title>
+    <style>
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+      html, body {
+        margin: 0; padding: 0; height: 100%; overflow: hidden;
+        background: #0f0f1a; color: #e2e8f0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        user-select: none; -webkit-user-select: none;
+        touch-action: none;
+      }
+      #game {
+        position: fixed; inset: 0;
+        width: 100%; height: 100%;
+        display: block;
+        touch-action: none;
+      }
+      /* ---------- Overlays ---------- */
+      .overlay {
+        position: fixed; inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+        background: radial-gradient(120% 120% at 50% 0%, rgba(76,29,149,0.35), rgba(15,15,26,0.96) 60%);
+        backdrop-filter: blur(3px);
+        z-index: 10;
+        text-align: center;
+      }
+      .overlay.show { display: flex; animation: fade .25s ease; }
+      @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+      .overlay h1 {
+        font-size: clamp(34px, 11vw, 68px);
+        margin: 0 0 6px; font-weight: 900; letter-spacing: -1px;
+        background: linear-gradient(180deg, #c4b5fd, #7c3aed);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        text-shadow: 0 4px 30px rgba(124,58,237,0.4);
+      }
+      .overlay h2 { font-size: clamp(22px,6vw,34px); margin: 0 0 4px; font-weight: 800; }
+      .overlay p.sub { color: #94a3b8; margin: 0 0 22px; font-size: clamp(14px,4vw,17px); max-width: 460px; line-height: 1.5; }
+      .btn {
+        appearance: none; border: none; cursor: pointer;
+        font-family: inherit; font-weight: 800;
+        padding: 16px 30px; border-radius: 16px; font-size: 19px;
+        color: #fff; background: linear-gradient(180deg, #8b5cf6, #6d28d9);
+        box-shadow: 0 8px 24px rgba(109,40,217,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
+        transition: transform .08s ease, filter .15s ease;
+        margin: 6px;
+      }
+      .btn:active { transform: translateY(2px) scale(0.98); filter: brightness(1.1); }
+      .btn.green { background: linear-gradient(180deg, #34d399, #059669); box-shadow: 0 8px 24px rgba(5,150,105,0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+      .btn.ghost { background: rgba(148,163,184,0.12); box-shadow: inset 0 0 0 1px rgba(148,163,184,0.3); }
+      .btn.big { padding: 20px 44px; font-size: 22px; }
+
+      /* ---------- Shop ---------- */
+      .shop-wrap { width: 100%; max-width: 540px; display: flex; flex-direction: column; height: 100%; }
+      .shop-head { flex: 0 0 auto; }
+      .money-pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(250,204,21,0.12); color: #fde047;
+        border: 1px solid rgba(250,204,21,0.35);
+        padding: 8px 18px; border-radius: 999px; font-weight: 900; font-size: 22px;
+        margin: 4px 0 14px;
+      }
+      .shop-list { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 14px; -webkit-overflow-scrolling: touch; }
+      .shop-item {
+        display: flex; align-items: center; gap: 12px; text-align: left;
+        background: rgba(30,27,55,0.85); border: 1px solid rgba(124,58,237,0.25);
+        border-radius: 14px; padding: 12px 14px;
+      }
+      .shop-item .ic { font-size: 30px; width: 44px; text-align: center; flex: 0 0 auto; }
+      .shop-item .info { flex: 1 1 auto; min-width: 0; }
+      .shop-item .info .name { font-weight: 800; font-size: 16px; }
+      .shop-item .info .desc { color: #94a3b8; font-size: 12.5px; margin-top: 2px; line-height: 1.35; }
+      .shop-item .info .lvl { color: #c4b5fd; font-size: 11.5px; margin-top: 3px; font-weight: 700; letter-spacing: .3px; }
+      .buy {
+        appearance: none; border: none; cursor: pointer; font-family: inherit;
+        flex: 0 0 auto; min-width: 86px;
+        padding: 11px 12px; border-radius: 11px; font-weight: 800; font-size: 14px; color: #fff;
+        background: linear-gradient(180deg, #34d399, #059669);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+        transition: transform .08s ease;
+      }
+      .buy:active { transform: scale(0.95); }
+      .buy:disabled { background: #334155; color: #64748b; cursor: default; box-shadow: none; }
+      .buy.max { background: linear-gradient(180deg,#475569,#334155); color:#cbd5e1; }
+      .shop-foot { flex: 0 0 auto; padding-top: 8px; border-top: 1px solid rgba(148,163,184,0.15); }
+
+      .stat-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+      .stat-chip { background: rgba(148,163,184,0.1); border-radius: 10px; padding: 7px 12px; font-size: 13px; }
+      .stat-chip b { color: #fde047; }
+
+      .hint { color:#64748b; font-size:13px; margin-top:10px; line-height:1.5; }
+      .toast-tip { position: fixed; left: 50%; bottom: 16%; transform: translateX(-50%); background: rgba(0,0,0,0.7); border:1px solid rgba(124,58,237,0.4); padding: 10px 18px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events:none; z-index: 9; }
+      .toast-tip.show { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- Title -->
+    <div class="overlay show" id="screen-title">
+      <h1>LAST STAND</h1>
+      <p class="sub">Defend your fortress against endless waves. <b>Tap &amp; hold</b> to fire at the horde. Every kill earns cash — survive the day, then spend it on deadlier weapons and tougher walls.</p>
+      <button class="btn big" id="btn-play">▶ Play</button>
+      <button class="btn ghost" id="btn-howto">How to Play</button>
+      <p class="hint" id="bestline"></p>
+    </div>
+
+    <!-- How to play -->
+    <div class="overlay" id="screen-howto">
+      <h2>How to Play</h2>
+      <p class="sub" style="text-align:left">
+        🎯 <b>Tap &amp; hold</b> anywhere to aim and fire your weapon at the attackers.<br><br>
+        🧟 Enemies march toward your wall. If they reach it, they smash it down. Don't let your wall hit 0.<br><br>
+        💰 Each kill drops <b>cash</b>. Clear every attacker to survive the day.<br><br>
+        🛒 Between days, spend cash in the <b>shop</b> — upgrade damage, fire-rate, multishot, auto-turrets, and repair or reinforce your wall.<br><br>
+        🔁 When your magazine empties it auto-reloads. Bigger mags &amp; faster reloads keep you firing.
+      </p>
+      <button class="btn" id="btn-howback">Got it</button>
+    </div>
+
+    <!-- Shop / End of day -->
+    <div class="overlay" id="screen-shop">
+      <div class="shop-wrap">
+        <div class="shop-head">
+          <h2 id="shop-title">Day Survived!</h2>
+          <div class="money-pill">💰 <span id="shop-money">0</span></div>
+          <div class="stat-row" id="shop-stats"></div>
+        </div>
+        <div class="shop-list" id="shop-list"></div>
+        <div class="shop-foot">
+          <button class="btn green big" id="btn-next">Start Day <span id="next-day-num">2</span> →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game over -->
+    <div class="overlay" id="screen-over">
+      <h1 style="background:linear-gradient(180deg,#fca5a5,#dc2626);-webkit-background-clip:text;background-clip:text;color:transparent">OVERRUN</h1>
+      <h2 id="over-day">You survived 0 days</h2>
+      <p class="sub" id="over-stats"></p>
+      <button class="btn big" id="btn-retry">↺ Try Again</button>
+    </div>
+
+    <div class="toast-tip" id="tip"></div>
+
+    <script>
+    "use strict";
+    (function () {
+      // ====================================================================
+      //  Last Stand — a "Storm the House"-style survival defense game.
+      //  Single-file, canvas + pointer input, mobile-first.
+      // ====================================================================
+
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      // ---------- responsive sizing ----------
+      let W = 0, H = 0, DPR = 1;
+      function resize() {
+        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = Math.floor(W * DPR);
+        canvas.height = Math.floor(H * DPR);
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        computeLayout();
+      }
+      // World layout (recomputed on resize)
+      const L = {};
+      function computeLayout() {
+        L.groundH = Math.max(70, H * 0.18);
+        L.groundY = H - L.groundH;
+        L.wallW = Math.max(46, Math.min(90, W * 0.13));
+        L.wallH = Math.min(H * 0.5, L.groundY - 40);
+        L.wallTopY = L.groundY - L.wallH;
+        // gun pivot sits on top of the wall
+        L.gunX = L.wallW;
+        L.gunY = L.wallTopY + 6;
+      }
+
+      // ---------- persistent best score ----------
+      const SAVE_KEY = "laststand.best";
+      function loadBest() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || { days: 0, kills: 0 }; } catch (e) { return { days: 0, kills: 0 }; } }
+      function saveBest(b) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(b)); } catch (e) {} }
+      let best = loadBest();
+
+      // ====================================================================
+      //  Upgrade definitions
+      // ====================================================================
+      // Each upgrade has a base cost, a cost growth factor, max level, and an
+      // apply() that mutates the run stats. "repair" is a one-shot consumable.
+      const UPGRADES = [
+        { id: "damage", icon: "💥", name: "Bullet Damage", max: 12, baseCost: 30, growth: 1.55,
+          desc: l => `Deal more damage per shot. +6 each level.`,
+          val: l => 10 + l * 6 },
+        { id: "firerate", icon: "🔥", name: "Fire Rate", max: 12, baseCost: 35, growth: 1.55,
+          desc: () => `Shoot faster — shorter delay between shots.`,
+          val: l => Math.max(70, 320 - l * 22) },
+        { id: "multishot", icon: "✴️", name: "Multishot", max: 6, baseCost: 90, growth: 1.9,
+          desc: () => `Fire extra bullets in a spread per trigger.`,
+          val: l => 1 + l },
+        { id: "mag", icon: "📦", name: "Magazine", max: 10, baseCost: 40, growth: 1.5,
+          desc: () => `Hold more rounds before reloading.`,
+          val: l => 8 + l * 4 },
+        { id: "reload", icon: "⏱️", name: "Reload Speed", max: 8, baseCost: 45, growth: 1.55,
+          desc: () => `Reload your magazine faster.`,
+          val: l => Math.max(350, 1600 - l * 160) },
+        { id: "pierce", icon: "🎯", name: "Piercing", max: 5, baseCost: 120, growth: 2.0,
+          desc: () => `Bullets pass through extra enemies.`,
+          val: l => l },
+        { id: "turret", icon: "🤖", name: "Auto-Turret", max: 6, baseCost: 150, growth: 1.85,
+          desc: l => l === 0 ? `Deploy an auto-turret that targets the nearest foe.` : `Upgrade turret damage & fire-rate.`,
+          val: l => l },
+        { id: "wallmax", icon: "🧱", name: "Reinforce Wall", max: 12, baseCost: 50, growth: 1.5,
+          desc: () => `Increase your wall's maximum HP by 60.`,
+          val: l => 200 + l * 60 },
+        { id: "repair", icon: "🛠️", name: "Repair Wall", max: Infinity, baseCost: 25, growth: 1.0,
+          desc: () => `Instantly restore 60 wall HP.`,
+          oneShot: true },
+      ];
+      function upgCost(u, lvl) {
+        if (u.oneShot) return u.baseCost;
+        return Math.floor(u.baseCost * Math.pow(u.growth, lvl));
+      }
+
+      // ====================================================================
+      //  Game state
+      // ====================================================================
+      let game = null;
+      function newGame() {
+        const g = {
+          day: 0,
+          money: 0,
+          kills: 0,
+          levels: {},          // upgradeId -> level
+          wallMax: 200,
+          wall: 200,
+          ammo: 0, mag: 8,
+          reloading: false, reloadEnd: 0,
+          lastShot: 0,
+          // entities
+          enemies: [], bullets: [], particles: [], floats: [],
+          // wave
+          toSpawn: 0, spawned: 0, spawnTimer: 0,
+          dayActive: false,
+          // turret
+          turretLast: 0,
+          // fx
+          shake: 0,
+          // input
+          firing: false, aimX: 0, aimY: 0,
+        };
+        UPGRADES.forEach(u => { if (!u.oneShot) g.levels[u.id] = 0; });
+        g.mag = statMag(g);
+        g.ammo = g.mag;
+        return g;
+      }
+
+      // ---------- derived stats ----------
+      function lvl(g, id) { return g.levels[id] || 0; }
+      function statDamage(g) { return 10 + lvl(g, "damage") * 6; }
+      function statFireDelay(g) { return Math.max(70, 320 - lvl(g, "firerate") * 22); }
+      function statMultishot(g) { return 1 + lvl(g, "multishot"); }
+      function statMag(g) { return 8 + lvl(g, "mag") * 4; }
+      function statReload(g) { return Math.max(350, 1600 - lvl(g, "reload") * 160); }
+      function statPierce(g) { return lvl(g, "pierce"); }
+      function statTurret(g) { return lvl(g, "turret"); }
+      function statWallMax(g) { return 200 + lvl(g, "wallmax") * 60; }
+
+      // ====================================================================
+      //  Enemy types
+      // ====================================================================
+      const ETYPES = {
+        grunt:  { hp: 30,  speed: 26, dmg: 8,  reward: 6,  size: 30, color: "#84cc16", emoji: "🧟", wallDps: 14 },
+        runner: { hp: 18,  speed: 64, dmg: 5,  reward: 9,  size: 24, color: "#22d3ee", emoji: "🐺", wallDps: 10 },
+        brute:  { hp: 120, speed: 17, dmg: 18, reward: 22, size: 46, color: "#f97316", emoji: "👹", wallDps: 34 },
+        swarm:  { hp: 10,  speed: 50, dmg: 3,  reward: 4,  size: 18, color: "#e879f9", emoji: "🦇", wallDps: 6 },
+        titan:  { hp: 420, speed: 12, dmg: 30, reward: 70, size: 64, color: "#ef4444", emoji: "🐲", wallDps: 60 },
+      };
+
+      // Build the spawn roster for a given day (array of type keys).
+      function rosterForDay(day) {
+        const roster = [];
+        const n = 5 + Math.floor(day * 2.6);
+        for (let i = 0; i < n; i++) {
+          const r = Math.random();
+          if (day >= 8 && r < 0.06) roster.push("titan");
+          else if (day >= 4 && r < 0.18) roster.push("brute");
+          else if (day >= 3 && r < 0.34) roster.push("swarm");
+          else if (day >= 2 && r < 0.55) roster.push("runner");
+          else roster.push("grunt");
+        }
+        // Guarantee a tough miniboss every 5 days
+        if (day % 5 === 0 && day > 0) roster.push(day >= 8 ? "titan" : "brute");
+        return roster;
+      }
+      function hpScale(day) { return 1 + (day - 1) * 0.28; }
+
+      // ====================================================================
+      //  Flow: start day, end day, game over
+      // ====================================================================
+      function startDay() {
+        const g = game;
+        g.day += 1;
+        const roster = rosterForDay(g.day);
+        g._roster = roster;
+        g.toSpawn = roster.length;
+        g.spawned = 0;
+        g.spawnTimer = 600;
+        g.dayActive = true;
+        g.enemies.length = 0;
+        g.bullets.length = 0;
+        g.ammo = g.mag = statMag(g);
+        g.reloading = false;
+        hideAll();
+        showTip(`DAY ${g.day} — ${roster.length} attackers incoming!`);
+      }
+
+      function endDay() {
+        const g = game;
+        g.dayActive = false;
+        g.firing = false;
+        if (g.day > best.days) { best.days = g.day; best.kills = Math.max(best.kills, g.kills); saveBest(best); }
+        openShop();
+      }
+
+      function gameOver() {
+        const g = game;
+        g.dayActive = false;
+        g.firing = false;
+        if (g.day - 1 > best.days) { best.days = g.day - 1; }
+        best.kills = Math.max(best.kills, g.kills);
+        saveBest(best);
+        document.getElementById("over-day").textContent =
+          `You survived ${g.day - 1} day${g.day - 1 === 1 ? "" : "s"}`;
+        document.getElementById("over-stats").textContent =
+          `${g.kills} kills · 💰${Math.floor(g.money)} banked · Best: ${best.days} days`;
+        show("screen-over");
+      }
+
+      // ====================================================================
+      //  Shop UI
+      // ====================================================================
+      function openShop() {
+        const g = game;
+        document.getElementById("shop-title").textContent =
+          g.day === 1 ? "First Day Survived!" : `Day ${g.day} Survived!`;
+        document.getElementById("next-day-num").textContent = g.day + 1;
+        renderShop();
+        show("screen-shop");
+      }
+      function renderShop() {
+        const g = game;
+        document.getElementById("shop-money").textContent = Math.floor(g.money);
+        // quick stat chips
+        document.getElementById("shop-stats").innerHTML = `
+          <span class="stat-chip">DMG <b>${statDamage(g)}</b></span>
+          <span class="stat-chip">Mag <b>${statMag(g)}</b></span>
+          <span class="stat-chip">Shots <b>${statMultishot(g)}</b></span>
+          <span class="stat-chip">Wall <b>${Math.ceil(g.wall)}/${statWallMax(g)}</b></span>`;
+        const list = document.getElementById("shop-list");
+        list.innerHTML = "";
+        UPGRADES.forEach(u => {
+          const curLvl = u.oneShot ? 0 : lvl(g, u.id);
+          const isMax = !u.oneShot && curLvl >= u.max;
+          const cost = upgCost(u, curLvl);
+          const canAfford = g.money >= cost && !isMax;
+          // hide repair if wall already full
+          if (u.id === "repair" && g.wall >= statWallMax(g)) return;
+
+          const row = document.createElement("div");
+          row.className = "shop-item";
+          let lvlText = u.oneShot ? "" :
+            `<div class="lvl">LV ${curLvl}${isMax ? " · MAX" : " / " + u.max}</div>`;
+          row.innerHTML = `
+            <div class="ic">${u.icon}</div>
+            <div class="info">
+              <div class="name">${u.name}</div>
+              <div class="desc">${u.desc(curLvl)}</div>
+              ${lvlText}
+            </div>`;
+          const btn = document.createElement("button");
+          btn.className = "buy" + (isMax ? " max" : "");
+          btn.textContent = isMax ? "MAX" : "💰 " + cost;
+          btn.disabled = !canAfford;
+          btn.onclick = () => buy(u);
+          row.appendChild(btn);
+          list.appendChild(row);
+        });
+      }
+      function buy(u) {
+        const g = game;
+        const curLvl = u.oneShot ? 0 : lvl(g, u.id);
+        if (!u.oneShot && curLvl >= u.max) return;
+        const cost = upgCost(u, curLvl);
+        if (g.money < cost) return;
+        g.money -= cost;
+        if (u.oneShot) {
+          if (u.id === "repair") g.wall = Math.min(statWallMax(g), g.wall + 60);
+        } else {
+          g.levels[u.id] = curLvl + 1;
+          if (u.id === "wallmax") g.wall += 60;   // reinforcing also adds current HP
+          if (u.id === "mag") g.ammo = statMag(g);
+        }
+        beep(520, 0.05, 0.18);
+        renderShop();
+      }
+
+      // ====================================================================
+      //  Input — pointer aim & fire
+      // ====================================================================
+      function setAimFromEvent(e) {
+        const r = canvas.getBoundingClientRect();
+        const px = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+        const py = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+        game.aimX = px; game.aimY = py;
+      }
+      function pointerDown(e) {
+        if (!game || !game.dayActive) return;
+        e.preventDefault();
+        setAimFromEvent(e);
+        game.firing = true;
+      }
+      function pointerMove(e) {
+        if (!game || !game.dayActive || !game.firing) return;
+        e.preventDefault();
+        setAimFromEvent(e);
+      }
+      function pointerUp(e) {
+        if (!game) return;
+        game.firing = false;
+      }
+      canvas.addEventListener("touchstart", pointerDown, { passive: false });
+      canvas.addEventListener("touchmove", pointerMove, { passive: false });
+      canvas.addEventListener("touchend", pointerUp);
+      canvas.addEventListener("touchcancel", pointerUp);
+      canvas.addEventListener("mousedown", pointerDown);
+      canvas.addEventListener("mousemove", pointerMove);
+      window.addEventListener("mouseup", pointerUp);
+
+      // ====================================================================
+      //  Firing
+      // ====================================================================
+      function tryShoot(now) {
+        const g = game;
+        if (g.reloading) return;
+        if (g.ammo <= 0) { startReload(now); return; }
+        if (now - g.lastShot < statFireDelay(g)) return;
+        g.lastShot = now;
+        g.ammo -= 1;
+
+        const dx = g.aimX - L.gunX, dy = g.aimY - L.gunY;
+        const base = Math.atan2(dy, dx);
+        const shots = statMultishot(g);
+        const spread = shots > 1 ? 0.16 : 0;
+        for (let i = 0; i < shots; i++) {
+          const t = shots === 1 ? 0 : (i / (shots - 1) - 0.5);
+          const a = base + t * spread * 2;
+          spawnBullet(L.gunX, L.gunY, a, statDamage(g), statPierce(g), "#fde047");
+        }
+        // muzzle flash + recoil shake + sound
+        for (let i = 0; i < 5; i++) {
+          g.particles.push({ x: L.gunX, y: L.gunY, vx: Math.cos(base) * (60 + Math.random() * 120), vy: Math.sin(base) * (60 + Math.random() * 120) - 20, life: 0.18, max: 0.18, r: 2 + Math.random() * 2, c: "#fde047" });
+        }
+        g.shake = Math.min(6, g.shake + 2.2);
+        beep(180 + Math.random() * 40, 0.04, 0.05);
+        if (g.ammo <= 0) startReload(now);
+      }
+      function startReload(now) {
+        const g = game;
+        if (g.reloading) return;
+        g.reloading = true;
+        g.reloadEnd = now + statReload(g);
+      }
+      function spawnBullet(x, y, ang, dmg, pierce, color) {
+        const sp = 980;
+        game.bullets.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, dmg, pierce, color, hit: [], r: 4 });
+      }
+
+      function spawnEnemy(typeKey) {
+        const g = game;
+        const t = ETYPES[typeKey];
+        const sc = hpScale(g.day);
+        const size = t.size;
+        g.enemies.push({
+          type: typeKey,
+          x: W + 30 + Math.random() * 60,
+          y: L.groundY - size * 0.5 + (Math.random() * 6 - 3),
+          hp: Math.round(t.hp * sc),
+          maxhp: Math.round(t.hp * sc),
+          speed: t.speed * (0.9 + Math.random() * 0.25),
+          size,
+          atWall: false,
+          flash: 0,
+          wob: Math.random() * Math.PI * 2,
+        });
+      }
+
+      // ====================================================================
+      //  Update
+      // ====================================================================
+      function update(dt, now) {
+        const g = game;
+        if (!g.dayActive) return;
+
+        // reload completion
+        if (g.reloading && now >= g.reloadEnd) { g.reloading = false; g.ammo = statMag(g); }
+
+        // continuous fire
+        if (g.firing) tryShoot(now);
+
+        // auto-turret
+        const tlvl = statTurret(g);
+        if (tlvl > 0) {
+          const tDelay = Math.max(160, 600 - tlvl * 70);
+          if (now - g.turretLast > tDelay && g.enemies.length) {
+            // nearest enemy to wall
+            let target = null, bd = Infinity;
+            for (const e of g.enemies) { if (e.x < bd) { bd = e.x; target = e; } }
+            if (target) {
+              g.turretLast = now;
+              const a = Math.atan2((target.y) - L.gunY, target.x - L.gunX);
+              spawnBullet(L.gunX, L.gunY - 14, a, 8 + tlvl * 7, Math.max(0, tlvl - 2), "#22d3ee");
+              g.particles.push({ x: L.gunX, y: L.gunY - 14, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, life: 0.15, max: 0.15, r: 2, c: "#22d3ee" });
+            }
+          }
+        }
+
+        // spawn waves
+        if (g.spawned < g.toSpawn) {
+          g.spawnTimer -= dt * 1000;
+          if (g.spawnTimer <= 0) {
+            spawnEnemy(g._roster[g.spawned]);
+            g.spawned += 1;
+            const base = Math.max(280, 1100 - g.day * 45);
+            g.spawnTimer = base * (0.6 + Math.random() * 0.8);
+          }
+        }
+
+        // bullets
+        for (let i = g.bullets.length - 1; i >= 0; i--) {
+          const b = g.bullets[i];
+          b.x += b.vx * dt; b.y += b.vy * dt;
+          if (b.x < -20 || b.x > W + 40 || b.y < -40 || b.y > H + 40) { g.bullets.splice(i, 1); continue; }
+          // collide with enemies
+          for (const e of g.enemies) {
+            if (e.hp <= 0 || b.hit.indexOf(e) !== -1) continue;
+            const hs = e.size * 0.5;
+            if (b.x > e.x - hs && b.x < e.x + hs && b.y > e.y - hs && b.y < e.y + hs) {
+              e.hp -= b.dmg; e.flash = 0.12; b.hit.push(e);
+              spawnHitFx(b.x, b.y, ETYPES[e.type].color);
+              if (e.hp <= 0) killEnemy(e);
+              if (b.pierce > 0) { b.pierce -= 1; }
+              else { g.bullets.splice(i, 1); break; }
+            }
+          }
+        }
+
+        // enemies
+        for (let i = g.enemies.length - 1; i >= 0; i--) {
+          const e = g.enemies[i];
+          if (e.hp <= 0) { g.enemies.splice(i, 1); continue; }
+          if (e.flash > 0) e.flash -= dt;
+          e.wob += dt * 8;
+          const t = ETYPES[e.type];
+          const reach = L.wallW + e.size * 0.5;
+          if (e.x > reach) {
+            e.x -= e.speed * dt;
+            if (e.x <= reach) { e.x = reach; e.atWall = true; }
+          } else {
+            e.atWall = true;
+          }
+          if (e.atWall) {
+            g.wall -= t.wallDps * dt;
+            if (Math.random() < dt * 6) spawnHitFx(L.wallW, e.y - e.size * 0.2, "#a78bfa");
+            if (g.wall <= 0) { g.wall = 0; gameOver(); return; }
+          }
+        }
+
+        // particles
+        for (let i = g.particles.length - 1; i >= 0; i--) {
+          const p = g.particles[i];
+          p.life -= dt;
+          if (p.life <= 0) { g.particles.splice(i, 1); continue; }
+          p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 420 * dt; p.vx *= 0.98;
+        }
+        // floating texts
+        for (let i = g.floats.length - 1; i >= 0; i--) {
+          const f = g.floats[i];
+          f.life -= dt; f.y -= 26 * dt;
+          if (f.life <= 0) g.floats.splice(i, 1);
+        }
+
+        // screen shake decay
+        if (g.shake > 0) g.shake = Math.max(0, g.shake - dt * 30);
+
+        // day cleared?
+        if (g.spawned >= g.toSpawn && g.enemies.length === 0) endDay();
+      }
+
+      function killEnemy(e) {
+        const g = game;
+        const t = ETYPES[e.type];
+        g.kills += 1;
+        const reward = Math.round(t.reward * (1 + g.day * 0.05));
+        g.money += reward;
+        g.floats.push({ x: e.x, y: e.y - e.size * 0.5, text: "+$" + reward, life: 0.9, c: "#fde047" });
+        spawnDeathFx(e.x, e.y, t.color);
+        beep(330, 0.05, 0.08);
+      }
+
+      function spawnHitFx(x, y, c) {
+        const g = game;
+        for (let i = 0; i < 4; i++) {
+          const a = Math.random() * Math.PI * 2, s = 40 + Math.random() * 120;
+          g.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, life: 0.3, max: 0.3, r: 1.5 + Math.random() * 2, c });
+        }
+      }
+      function spawnDeathFx(x, y, c) {
+        const g = game;
+        for (let i = 0; i < 14; i++) {
+          const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 200;
+          g.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, life: 0.5 + Math.random() * 0.3, max: 0.8, r: 2 + Math.random() * 3, c });
+        }
+      }
+
+      // ====================================================================
+      //  Render
+      // ====================================================================
+      function render(now) {
+        const g = game;
+        ctx.clearRect(0, 0, W, H);
+
+        // shake offset
+        let sx = 0, sy = 0;
+        if (g && g.shake > 0) { sx = (Math.random() - 0.5) * g.shake; sy = (Math.random() - 0.5) * g.shake; }
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        drawSky();
+        drawGround();
+        if (g) {
+          drawEnemies(g, now);
+          drawWall(g);
+          drawTurretAndGun(g, now);
+          drawBullets(g);
+          drawParticles(g);
+          drawFloats(g);
+        }
+        ctx.restore();
+
+        if (g && g.dayActive) drawHUD(g);
+      }
+
+      function drawSky() {
+        const grd = ctx.createLinearGradient(0, 0, 0, L.groundY);
+        grd.addColorStop(0, "#1a132e");
+        grd.addColorStop(1, "#2a1a40");
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, W, L.groundY);
+        // moon
+        ctx.fillStyle = "rgba(226,232,240,0.85)";
+        ctx.beginPath(); ctx.arc(W * 0.82, H * 0.16, Math.max(20, W * 0.05), 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#2a1a40";
+        ctx.beginPath(); ctx.arc(W * 0.80, H * 0.14, Math.max(18, W * 0.045), 0, Math.PI * 2); ctx.fill();
+      }
+      function drawGround() {
+        const grd = ctx.createLinearGradient(0, L.groundY, 0, H);
+        grd.addColorStop(0, "#3a2d1a");
+        grd.addColorStop(1, "#241a10");
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, L.groundY, W, L.groundH);
+        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        ctx.beginPath(); ctx.moveTo(0, L.groundY); ctx.lineTo(W, L.groundY); ctx.stroke();
+      }
+
+      function drawWall(g) {
+        const x = 0, w = L.wallW, top = L.wallTopY, h = L.groundY - top;
+        // body
+        const grd = ctx.createLinearGradient(0, top, w, top);
+        grd.addColorStop(0, "#4c3a6e");
+        grd.addColorStop(1, "#6d28d9");
+        ctx.fillStyle = grd;
+        ctx.fillRect(x, top, w, h);
+        // battlements
+        ctx.fillStyle = "#5b21b6";
+        const bw = w / 3;
+        for (let i = 0; i < 3; i += 2) ctx.fillRect(i * bw, top - 12, bw, 12);
+        // brick lines
+        ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
+        for (let yy = top + 14; yy < L.groundY; yy += 18) { ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke(); }
+        // damage tint based on wall %
+        const pct = g.wall / statWallMax(g);
+        if (pct < 1) {
+          ctx.fillStyle = `rgba(220,38,38,${0.35 * (1 - pct)})`;
+          ctx.fillRect(x, top, w, h);
+        }
+        // wall HP bar
+        const barW = w, barH = 7, by = top - 22;
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, by, barW, barH);
+        ctx.fillStyle = pct > 0.5 ? "#34d399" : pct > 0.25 ? "#fbbf24" : "#ef4444";
+        ctx.fillRect(0, by, barW * Math.max(0, pct), barH);
+      }
+
+      function drawTurretAndGun(g, now) {
+        // gun barrel aiming at cursor
+        const ang = Math.atan2(g.aimY - L.gunY, g.aimX - L.gunX);
+        ctx.save();
+        ctx.translate(L.gunX, L.gunY);
+        // base
+        ctx.fillStyle = "#1e293b";
+        ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+        // barrel
+        ctx.rotate(ang);
+        ctx.fillStyle = g.reloading ? "#64748b" : "#cbd5e1";
+        ctx.fillRect(0, -4, 30, 8);
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillRect(24, -5, 6, 10);
+        ctx.restore();
+
+        // auto-turret visual (small dome on the wall)
+        if (statTurret(g) > 0) {
+          ctx.fillStyle = "#0ea5e9";
+          ctx.beginPath(); ctx.arc(L.gunX - 4, L.gunY - 14, 7, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#7dd3fc";
+          ctx.beginPath(); ctx.arc(L.gunX - 4, L.gunY - 14, 3, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // aim reticle
+        if (g.firing) {
+          ctx.strokeStyle = "rgba(253,224,71,0.7)"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(g.aimX, g.aimY, 14, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(g.aimX - 20, g.aimY); ctx.lineTo(g.aimX - 6, g.aimY);
+          ctx.moveTo(g.aimX + 6, g.aimY); ctx.lineTo(g.aimX + 20, g.aimY);
+          ctx.moveTo(g.aimX, g.aimY - 20); ctx.lineTo(g.aimX, g.aimY - 6);
+          ctx.moveTo(g.aimX, g.aimY + 6); ctx.lineTo(g.aimX, g.aimY + 20); ctx.stroke();
+        }
+      }
+
+      function drawEnemies(g, now) {
+        for (const e of g.enemies) {
+          const t = ETYPES[e.type];
+          const s = e.size;
+          const bob = Math.sin(e.wob) * 2;
+          // body
+          ctx.save();
+          ctx.translate(e.x, e.y + bob);
+          // shadow
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.beginPath(); ctx.ellipse(0, s * 0.5, s * 0.4, s * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+          // emoji body
+          ctx.font = `${s}px serif`;
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          if (e.flash > 0) { ctx.globalAlpha = 1; ctx.fillStyle = "#fff"; ctx.fillText("✦", 0, 0); }
+          ctx.globalAlpha = 1;
+          ctx.fillText(t.emoji, 0, 0);
+          ctx.restore();
+          // hp bar
+          if (e.hp < e.maxhp) {
+            const w = s, h = 4, yy = e.y - s * 0.6 + bob;
+            ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(e.x - w / 2, yy, w, h);
+            ctx.fillStyle = "#ef4444"; ctx.fillRect(e.x - w / 2, yy, w * (e.hp / e.maxhp), h);
+          }
+        }
+      }
+
+      function drawBullets(g) {
+        for (const b of g.bullets) {
+          ctx.strokeStyle = b.color; ctx.lineWidth = b.r;
+          ctx.beginPath();
+          ctx.moveTo(b.x, b.y);
+          ctx.lineTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018);
+          ctx.stroke();
+          ctx.fillStyle = b.color;
+          ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      function drawParticles(g) {
+        for (const p of g.particles) {
+          ctx.globalAlpha = Math.max(0, p.life / p.max);
+          ctx.fillStyle = p.c;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      function drawFloats(g) {
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        for (const f of g.floats) {
+          ctx.globalAlpha = Math.max(0, f.life / 0.9);
+          ctx.font = "bold 16px system-ui";
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillText(f.text, f.x + 1, f.y + 1);
+          ctx.fillStyle = f.c;
+          ctx.fillText(f.text, f.x, f.y);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawHUD(g) {
+        const pad = 12 + (window.visualViewport ? 0 : 0);
+        const topPad = Math.max(12, getSafeTop());
+        ctx.textBaseline = "top";
+        // Day + remaining
+        ctx.font = "900 22px system-ui";
+        ctx.textAlign = "left";
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillText("DAY " + g.day, pad + 1, topPad + 1);
+        ctx.fillStyle = "#e2e8f0"; ctx.fillText("DAY " + g.day, pad, topPad);
+        const remaining = (g.toSpawn - g.spawned) + g.enemies.length;
+        ctx.font = "600 13px system-ui";
+        ctx.fillStyle = "#94a3b8";
+        ctx.fillText(remaining + " enemies left", pad, topPad + 26);
+
+        // Money (top-right)
+        ctx.textAlign = "right";
+        ctx.font = "900 22px system-ui";
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillText("💰 " + Math.floor(g.money), W - pad + 1, topPad + 1);
+        ctx.fillStyle = "#fde047"; ctx.fillText("💰 " + Math.floor(g.money), W - pad, topPad);
+
+        // Ammo (bottom-left, above ground)
+        const ay = L.groundY + 14;
+        ctx.textAlign = "left"; ctx.textBaseline = "top";
+        if (g.reloading) {
+          ctx.font = "800 16px system-ui"; ctx.fillStyle = "#fbbf24";
+          ctx.fillText("RELOADING…", pad, ay);
+          const pct = 1 - Math.max(0, (g.reloadEnd - performance.now()) / statReload(g));
+          ctx.fillStyle = "rgba(255,255,255,0.2)"; ctx.fillRect(pad, ay + 22, 120, 6);
+          ctx.fillStyle = "#fbbf24"; ctx.fillRect(pad, ay + 22, 120 * pct, 6);
+        } else {
+          ctx.font = "800 18px system-ui"; ctx.fillStyle = "#e2e8f0";
+          ctx.fillText("🔫 " + g.ammo + " / " + statMag(g), pad, ay);
+        }
+      }
+      function getSafeTop() {
+        // best-effort safe area for notches
+        return 14;
+      }
+
+      // ====================================================================
+      //  Main loop
+      // ====================================================================
+      let lastT = performance.now();
+      function loop(now) {
+        const dt = Math.min(0.05, (now - lastT) / 1000);
+        lastT = now;
+        if (game) update(dt, now);
+        render(now);
+        requestAnimationFrame(loop);
+      }
+
+      // ====================================================================
+      //  Tiny WebAudio SFX
+      // ====================================================================
+      let audioCtx = null;
+      function beep(freq, dur, vol) {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const o = audioCtx.createOscillator(), gn = audioCtx.createGain();
+          o.frequency.value = freq; o.type = "square";
+          gn.gain.value = vol;
+          o.connect(gn); gn.connect(audioCtx.destination);
+          const t = audioCtx.currentTime;
+          gn.gain.setValueAtTime(vol, t);
+          gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          o.start(t); o.stop(t + dur);
+        } catch (e) {}
+      }
+
+      // ====================================================================
+      //  Screen helpers
+      // ====================================================================
+      const SCREENS = ["screen-title", "screen-howto", "screen-shop", "screen-over"];
+      function hideAll() { SCREENS.forEach(s => document.getElementById(s).classList.remove("show")); }
+      function show(id) { hideAll(); document.getElementById(id).classList.add("show"); }
+      let tipT = null;
+      function showTip(msg) {
+        const el = document.getElementById("tip");
+        el.textContent = msg; el.classList.add("show");
+        clearTimeout(tipT);
+        tipT = setTimeout(() => el.classList.remove("show"), 2200);
+      }
+
+      function updateBestLine() {
+        const el = document.getElementById("bestline");
+        el.textContent = best.days > 0 ? `Best: ${best.days} day${best.days === 1 ? "" : "s"} · ${best.kills} kills` : "";
+      }
+
+      // ====================================================================
+      //  Wire up buttons
+      // ====================================================================
+      document.getElementById("btn-play").onclick = () => {
+        if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+        game = newGame();
+        startDay();
+      };
+      document.getElementById("btn-howto").onclick = () => show("screen-howto");
+      document.getElementById("btn-howback").onclick = () => show("screen-title");
+      document.getElementById("btn-next").onclick = () => startDay();
+      document.getElementById("btn-retry").onclick = () => { game = newGame(); startDay(); };
+
+      // ====================================================================
+      //  Boot
+      // ====================================================================
+      window.addEventListener("resize", resize);
+      window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+      resize();
+      updateBestLine();
+      requestAnimationFrame(loop);
+    })();
+    </script>
+  </body>
+</html>
