@@ -1,74 +1,141 @@
-export type SalaryInputMode = 'gross' | 'net';
-export type SalaryPeriod = 'monthly' | 'yearly';
+// ---- Core domain types for PadelPath ----
 
-export interface SalaryConfig {
-  grossAmount: number;
-  period: SalaryPeriod;
-  inputMode: SalaryInputMode;
-  netMonthly: number;
-  taxAmount: number;
-  niAmount: number;
-}
+export type Page =
+  | 'dashboard'
+  | 'plan'
+  | 'gameplay'
+  | 'strength'
+  | 'recovery'
+  | 'diet'
+  | 'profile';
 
-export type BudgetCategoryType = 'needs' | 'wants' | 'savings';
+export type SkillLevel = 1 | 2 | 3 | 4 | 5;
 
-export interface BudgetCategory {
+export const LEVEL_LABELS: Record<SkillLevel, string> = {
+  1: 'Beginner',
+  2: 'Improver',
+  3: 'Intermediate',
+  4: 'Advanced',
+  5: 'Competitive',
+};
+
+export type GoalId =
+  | 'social'
+  | 'fitness'
+  | 'compete'
+  | 'rank_up';
+
+export type DietPreference =
+  | 'no_restriction'
+  | 'vegetarian'
+  | 'vegan'
+  | 'pescatarian';
+
+export type DietGoal =
+  | 'lose_fat'
+  | 'build_muscle'
+  | 'maintain'
+  | 'fuel_performance';
+
+// A skill area used across game play + weakness selection
+export interface SkillArea {
   id: string;
   name: string;
-  type: BudgetCategoryType;
-  budgetedAmount: number;
-  emoji: string;
+  category: 'attack' | 'defense' | 'serve' | 'movement' | 'tactics';
+  short: string;
+  drills: Drill[];
 }
 
-export interface MonthlyEntry {
-  id: string;
-  month: string;
-  categoryId: string;
-  actualSpent: number;
+export interface Drill {
+  name: string;
+  focus: string;
+  reps: string;
+  detail: string;
 }
 
-export interface MonthRecord {
-  month: string;
-  completed: boolean;
-  completedAt?: string;
-}
-
-export interface Debt {
+export interface StrengthExercise {
   id: string;
   name: string;
-  balance: number;
-  interestRate: number;
-  minimumPayment: number;
-  payments: DebtPayment[];
+  group: 'lower' | 'upper' | 'core' | 'power' | 'mobility';
+  sets: string;
+  detail: string;
+  lowImpact: boolean;
 }
 
-export interface DebtPayment {
+export interface RecoveryProtocol {
+  id: string;
+  name: string;
+  when: string;
+  duration: string;
+  detail: string;
+  steps: string[];
+}
+
+export interface DietTip {
+  id: string;
+  title: string;
+  detail: string;
+}
+
+// ---- User + profile ----
+
+// The onboarding answers that define what the user is training for.
+export interface Profile {
+  goal: GoalId;
+  currentLevel: SkillLevel;
+  targetLevel: SkillLevel;
+  daysPerWeek: number;
+  sessionMinutes: number;
+  weaknesses: string[]; // SkillArea ids
+  injuries: string[];   // free-select limitation ids
+  dietPreference: DietPreference;
+  dietGoal: DietGoal;
+  bodyweightKg: number | null;
+  completedAt: string;
+}
+
+export interface User {
+  username: string;
+  displayName: string;
+  passHash: string;
+  createdAt: string;
+}
+
+// Progress tracking: which plan items the user has ticked, keyed by item id
+export interface UserData {
+  profile: Profile | null;
+  completedItems: Record<string, string>; // itemId -> ISO date completed
+  sessionLog: LoggedSession[];
+  streak: number;
+  lastActiveDate: string | null;
+}
+
+export interface LoggedSession {
   id: string;
   date: string;
-  amount: number;
+  type: 'court' | 'strength' | 'recovery';
+  note: string;
 }
 
-export type DebtStrategy = 'avalanche' | 'snowball';
+// ---- Generated plan ----
 
-export interface Achievement {
+export interface PlanItem {
   id: string;
-  name: string;
-  description: string;
-  emoji: string;
-  unlockedAt?: string;
+  title: string;
+  detail: string;
+  kind: 'court' | 'strength' | 'recovery' | 'diet';
+  meta?: string;
 }
 
-export interface AppState {
-  salary: SalaryConfig | null;
-  categories: BudgetCategory[];
-  monthlyEntries: MonthlyEntry[];
-  monthRecords: MonthRecord[];
-  debts: Debt[];
-  debtStrategy: DebtStrategy;
-  xp: number;
-  level: number;
-  achievements: Achievement[];
-  streak: number;
-  setupComplete: boolean;
-  currentPage: string;
+export interface PlanDay {
+  label: string;       // e.g. "Session 1"
+  theme: string;       // e.g. "Attack + Power"
+  items: PlanItem[];
+}
+
+export interface WeeklyPlan {
+  summary: string;
+  focusAreas: string[]; // human-readable weakness names being targeted
+  days: PlanDay[];
+  weeksToGoal: number;
 }

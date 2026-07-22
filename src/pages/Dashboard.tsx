@@ -1,118 +1,107 @@
-import { ProgressRing } from '../components/ProgressRing';
-import { AchievementBadge } from '../components/AchievementBadge';
-import { getLevelInfo } from '../utils/gamification';
-import { AppState } from '../types';
-import { getTotalDebt } from '../utils/debt';
-import { Flame, TrendingDown, Target, Award } from 'lucide-react';
+import { Flame, Target, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Page, UserData } from '../types';
+import { LEVEL_LABELS } from '../types';
+import { GOAL_LABELS } from '../data/onboarding';
+import { generatePlan } from '../lib/plan';
+import { Card, PageHeader, Pill, ProgressBar, Button } from '../components/ui';
 
-interface DashboardProps {
-  state: AppState;
-  onNavigate: (page: string) => void;
-}
+export function Dashboard({
+  data,
+  displayName,
+  onNavigate,
+}: {
+  data: UserData;
+  displayName: string;
+  onNavigate: (p: Page) => void;
+}) {
+  const profile = data.profile!;
+  const plan = generatePlan(profile);
 
-export function Dashboard({ state, onNavigate }: DashboardProps) {
-  const { title, color, progress, xpToNext, level } = getLevelInfo(state.xp);
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const monthEntries = state.monthlyEntries.filter(e => e.month === currentMonth);
-  const totalBudget = state.categories.reduce((s, c) => s + c.budgetedAmount, 0);
-  const totalSpent = monthEntries.reduce((s, e) => s + e.actualSpent, 0);
-  const remaining = totalBudget - totalSpent;
-  const totalDebt = getTotalDebt(state.debts);
-  const recentAchievements = state.achievements
-    .filter(a => a.unlockedAt)
-    .sort((a, b) => new Date(b.unlockedAt!).getTime() - new Date(a.unlockedAt!).getTime())
-    .slice(0, 3);
+  // Count completed plan items across all sessions.
+  const allItemIds = new Set<string>();
+  plan.days.forEach((d) => d.items.forEach((i) => allItemIds.add(i.id)));
+  const completedCount = Array.from(allItemIds).filter((id) => data.completedItems[id]).length;
+  const totalCount = allItemIds.size;
+  const pct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const levelGap = profile.targetLevel - profile.currentLevel;
+  const levelProgressPct = Math.round((profile.currentLevel / profile.targetLevel) * 100);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 mt-1">Your financial overview for {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+    <div>
+      <PageHeader title={`Welcome back, ${displayName}`} subtitle="Here's your training snapshot." />
+
+      <div className="grid sm:grid-cols-3 gap-4 mb-6">
+        <StatCard icon={<Flame className="text-orange-400" />} label="Current streak" value={`${data.streak} day${data.streak === 1 ? '' : 's'}`} />
+        <StatCard icon={<Target className="text-emerald-400" />} label="Goal" value={GOAL_LABELS[profile.goal]} small />
+        <StatCard icon={<CheckCircle2 className="text-teal-400" />} label="Plan completed" value={`${pct}%`} />
       </div>
 
-      <div className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 border border-purple-800/50 rounded-2xl p-8 flex flex-col sm:flex-row items-center gap-8">
-        <ProgressRing progress={progress} size={140} strokeWidth={12} color="#8b5cf6">
-          <div>
-            <div className="text-2xl font-black text-white">{level}</div>
-            <div className="text-xs text-purple-300">LEVEL</div>
-          </div>
-        </ProgressRing>
-        <div className="flex-1">
-          <div className={`text-2xl font-bold ${color}`}>{title}</div>
-          <div className="text-gray-300 mt-1">{state.xp} XP total</div>
-          {xpToNext > 0 && <div className="text-sm text-gray-400 mt-1">{xpToNext} XP to next level</div>}
-          <div className="flex items-center gap-2 mt-4">
-            <Flame className="text-orange-400" size={20} />
-            <span className="text-white font-semibold">{state.streak} month streak</span>
-          </div>
-          {!state.setupComplete && (
-            <button onClick={() => onNavigate('salary')} className="mt-4 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg text-sm font-medium">
-              Get Started →
-            </button>
-          )}
+      <Card className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp size={18} className="text-emerald-400" />
+          <h2 className="font-semibold text-white">Level progress</h2>
         </div>
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="text-slate-300">
+            {LEVEL_LABELS[profile.currentLevel]} <span className="text-slate-500">(now)</span>
+          </span>
+          <span className="text-emerald-400">
+            {LEVEL_LABELS[profile.targetLevel]} <span className="text-slate-500">(goal)</span>
+          </span>
+        </div>
+        <ProgressBar value={levelProgressPct} />
+        <p className="text-sm text-slate-400 mt-3">
+          {levelGap <= 0
+            ? "You're at your target level — this block keeps you sharp and consistent."
+            : `${levelGap} level${levelGap > 1 ? 's' : ''} to go. Estimated ${plan.weeksToGoal} weeks of consistent training.`}
+        </p>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="font-semibold text-white mb-2">This week's focus</h2>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {plan.focusAreas.map((f) => (
+            <Pill key={f} tone="court">
+              {f}
+            </Pill>
+          ))}
+        </div>
+        <p className="text-sm text-slate-400 mb-4">{plan.summary}</p>
+        <Button onClick={() => onNavigate('plan')}>Open my plan →</Button>
+      </Card>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <QuickLink title="Game Play" desc="Drills for your weak areas" onClick={() => onNavigate('gameplay')} emoji="🎾" />
+        <QuickLink title="Strengthening" desc="Padel-specific S&C" onClick={() => onNavigate('strength')} emoji="🏋️" />
+        <QuickLink title="Recovery" desc="Stay fresh and injury-free" onClick={() => onNavigate('recovery')} emoji="🧘" />
+        <QuickLink title="Diet" desc="Fuel your training" onClick={() => onNavigate('diet')} emoji="🥗" />
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Target className="text-blue-400" size={18} />
-            <span className="text-gray-400 text-sm font-medium">Monthly Budget</span>
-          </div>
-          <div className="text-2xl font-bold text-white">£{totalBudget.toFixed(0)}</div>
-          <div className="text-sm text-gray-400 mt-1">Spent: £{totalSpent.toFixed(0)}</div>
-          <div className={`text-sm font-medium mt-1 ${remaining >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {remaining >= 0 ? `£${remaining.toFixed(0)} remaining` : `£${Math.abs(remaining).toFixed(0)} over`}
-          </div>
-          {totalBudget > 0 && (
-            <div className="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${totalSpent / totalBudget > 1 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(totalSpent / totalBudget * 100, 100)}%` }} />
-            </div>
-          )}
-        </div>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingDown className="text-red-400" size={18} />
-            <span className="text-gray-400 text-sm font-medium">Total Debt</span>
-          </div>
-          <div className="text-2xl font-bold text-white">£{totalDebt.toFixed(0)}</div>
-          <div className="text-sm text-gray-400 mt-1">{state.debts.length} debt{state.debts.length !== 1 ? 's' : ''} tracked</div>
-          <button onClick={() => onNavigate('debt')} className="mt-3 text-xs text-purple-400 hover:text-purple-300">
-            {state.debts.length > 0 ? 'View debts →' : 'Add a debt →'}
-          </button>
-        </div>
-
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Award className="text-yellow-400" size={18} />
-            <span className="text-gray-400 text-sm font-medium">Achievements</span>
-          </div>
-          <div className="text-2xl font-bold text-white">{state.achievements.filter(a => a.unlockedAt).length}/{state.achievements.length}</div>
-          <div className="text-sm text-gray-400 mt-1">Unlocked</div>
-          <button onClick={() => onNavigate('achievements')} className="mt-3 text-xs text-purple-400 hover:text-purple-300">View all →</button>
-        </div>
-      </div>
-
-      {recentAchievements.length > 0 && (
-        <div>
-          <h2 className="text-lg font-bold text-white mb-4">Recent Achievements</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {recentAchievements.map(a => <AchievementBadge key={a.id} achievement={a} size="md" />)}
-          </div>
-        </div>
-      )}
-
-      {state.setupComplete && (
-        <div>
-          <h2 className="text-lg font-bold text-white mb-4">Quick Actions</h2>
-          <div className="flex flex-wrap gap-3">
-            <button onClick={() => onNavigate('monthly')} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium">Log Spending</button>
-            <button onClick={() => onNavigate('debt')} className="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Record Debt Payment</button>
-            <button onClick={() => onNavigate('budget')} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Adjust Budget</button>
-          </div>
-        </div>
-      )}
     </div>
+  );
+}
+
+function StatCard({ icon, label, value, small }: { icon: React.ReactNode; label: string; value: string; small?: boolean }) {
+  return (
+    <Card>
+      <div className="flex items-center gap-2 text-slate-400 text-sm mb-2">
+        {icon}
+        {label}
+      </div>
+      <div className={`font-bold text-white ${small ? 'text-base leading-tight' : 'text-2xl'}`}>{value}</div>
+    </Card>
+  );
+}
+
+function QuickLink({ title, desc, onClick, emoji }: { title: string; desc: string; onClick: () => void; emoji: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-left rounded-2xl bg-slate-900/70 border border-slate-800 p-5 hover:border-emerald-500/50 transition-colors"
+    >
+      <div className="text-2xl mb-2">{emoji}</div>
+      <div className="font-semibold text-white">{title}</div>
+      <div className="text-sm text-slate-400">{desc}</div>
+    </button>
   );
 }

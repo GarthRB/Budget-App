@@ -1,164 +1,143 @@
-import { useState, useEffect, useCallback } from 'react';
-import { AppState, SalaryConfig, BudgetCategory, Debt, DebtPayment, DebtStrategy, MonthlyEntry, Achievement } from './types';
-import { ACHIEVEMENT_DEFS, getLevelInfo } from './utils/gamification';
+import { useCallback, useEffect, useState } from 'react';
+import { LoggedSession, Page, Profile, User, UserData } from './types';
+import {
+  currentUser,
+  loadUserData,
+  login as authLogin,
+  logout as authLogout,
+  register as authRegister,
+  saveUserData,
+} from './lib/auth';
 
-const STORAGE_KEY = 'budget-quest-state';
-
-const defaultAchievements: Achievement[] = ACHIEVEMENT_DEFS.map(a => ({ ...a }));
-
-const defaultState: AppState = {
-  salary: null,
-  categories: [],
-  monthlyEntries: [],
-  monthRecords: [],
-  debts: [],
-  debtStrategy: 'avalanche',
-  xp: 0,
-  level: 1,
-  achievements: defaultAchievements,
-  streak: 0,
-  setupComplete: false,
-  currentPage: 'dashboard',
-};
-
-function loadState(): AppState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as AppState;
-      const existingIds = new Set(parsed.achievements.map((a: Achievement) => a.id));
-      const merged = [...parsed.achievements, ...defaultAchievements.filter(a => !existingIds.has(a.id))];
-      return { ...defaultState, ...parsed, achievements: merged };
-    }
-  } catch { /* ignore */ }
-  return { ...defaultState };
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export function useAppStore() {
-  const [state, setState] = useState<AppState>(loadState);
-  const [xpToast, setXpToast] = useState<{ amount: number; id: number } | null>(null);
+function computeStreak(data: UserData): number {
+  const today = todayStr();
+  if (data.lastActiveDate === today) return data.streak;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (data.lastActiveDate === yesterday) return data.streak; // still alive, not yet incremented today
+  if (data.lastActiveDate && data.lastActiveDate < yesterday) return 0; // broken
+  return data.streak;
+}
+
+export function useApp() {
+  const [user, setUser] = useState<User | null>(() => currentUser());
+  const [data, setData] = useState<UserData>(() => {
+    const u = currentUser();
+    return u ? loadUserData(u.username) : loadUserData('');
+  });
+  const [page, setPage] = useState<Page>('dashboard');
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Persist whenever data changes and a user is logged in.
+  useEffect(() => {
+    if (user) saveUserData(user.username, data);
+  }, [user, data]);
+
+  const refreshStreak = useCallback(() => {
+    setData((d) => ({ ...d, streak: computeStreak(d) }));
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    if (user) refreshStreak();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-  const navigate = useCallback((page: string) => {
-    setState(s => ({ ...s, currentPage: page }));
-  }, []);
-
-  const earnXP = useCallback((amount: number) => {
-    setXpToast({ amount, id: Date.now() });
-    setState(s => {
-      const newXP = s.xp + amount;
-      const { level } = getLevelInfo(newXP);
-      return { ...s, xp: newXP, level };
-    });
-  }, []);
-
-  const unlockAchievement = useCallback((id: string) => {
-    setState(s => {
-      const already = s.achievements.find(a => a.id === id);
-      if (already?.unlockedAt) return s;
-      return {
-        ...s,
-        achievements: s.achievements.map(a =>
-          a.id === id ? { ...a, unlockedAt: new Date().toISOString() } : a
-        ),
-      };
-    });
-  }, []);
-
-  const setSalary = useCallback((salary: SalaryConfig) => {
-    const isFirstTime = !state.setupComplete;
-    setState(s => ({ ...s, salary, setupComplete: true, currentPage: 'budget' }));
-    if (isFirstTime) {
-      earnXP(100);
-      unlockAchievement('first_steps');
+  const register = useCallback((username: string, displayName: string, password: string) => {
+    const res = authRegister(username, displayName, password);
+    if (res.ok && res.user) {
+      setUser(res.user);
+      setData(loadUserData(res.user.username));
+      setPage('dashboard');
+      setAuthError(null);
+    } else {
+      setAuthError(res.error ?? 'Could not create account.');
     }
-  }, [state.setupComplete, earnXP, unlockAchievement]);
-
-  const setCategories = useCallback((categories: BudgetCategory[]) => {
-    setState(s => ({ ...s, categories }));
+    return res.ok;
   }, []);
 
-  const addDebt = useCallback((debt: Debt) => {
-    setState(s => ({ ...s, debts: [...s.debts, debt] }));
-    earnXP(25);
-  }, [earnXP]);
-
-  const removeDebt = useCallback((id: string) => {
-    setState(s => ({ ...s, debts: s.debts.filter(d => d.id !== id) }));
-  }, []);
-
-  const addDebtPayment = useCallback((debtId: string, payment: DebtPayment, newBalance: number) => {
-    const willPayOff = newBalance <= 0;
-    setState(s => {
-      const debts = s.debts.map(d => {
-        if (d.id !== debtId) return d;
-        return { ...d, balance: Math.max(0, newBalance), payments: [...d.payments, payment] };
-      });
-      return { ...s, debts };
-    });
-    earnXP(50);
-    unlockAchievement('debt_destroyer');
-    if (willPayOff) {
-      unlockAchievement('snowball_effect');
+  const login = useCallback((username: string, password: string) => {
+    const res = authLogin(username, password);
+    if (res.ok && res.user) {
+      setUser(res.user);
+      setData(loadUserData(res.user.username));
+      setPage('dashboard');
+      setAuthError(null);
+    } else {
+      setAuthError(res.error ?? 'Could not log in.');
     }
-  }, [earnXP, unlockAchievement]);
-
-  const setDebtStrategy = useCallback((strategy: DebtStrategy) => {
-    setState(s => ({ ...s, debtStrategy: strategy }));
+    return res.ok;
   }, []);
 
-  const setMonthlyEntry = useCallback((entry: MonthlyEntry) => {
-    setState(s => {
-      const existing = s.monthlyEntries.findIndex(e => e.month === entry.month && e.categoryId === entry.categoryId);
-      if (existing >= 0) {
-        const updated = [...s.monthlyEntries];
-        updated[existing] = entry;
-        return { ...s, monthlyEntries: updated };
+  const logout = useCallback(() => {
+    authLogout();
+    setUser(null);
+    setData(loadUserData(''));
+    setPage('dashboard');
+  }, []);
+
+  const saveProfile = useCallback((profile: Profile) => {
+    setData((d) => ({ ...d, profile }));
+    setPage('plan');
+  }, []);
+
+  const resetProfile = useCallback(() => {
+    setData((d) => ({ ...d, profile: null, completedItems: {} }));
+  }, []);
+
+  // Toggle a plan item as complete for today, maintaining the streak.
+  const toggleItem = useCallback((itemId: string) => {
+    setData((d) => {
+      const completed = { ...d.completedItems };
+      const today = todayStr();
+      let streak = d.streak;
+      let lastActiveDate = d.lastActiveDate;
+      if (completed[itemId]) {
+        delete completed[itemId];
+      } else {
+        completed[itemId] = today;
+        // Bump streak the first time something is completed on a new day.
+        if (d.lastActiveDate !== today) {
+          const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+          streak = d.lastActiveDate === yesterday ? d.streak + 1 : 1;
+          lastActiveDate = today;
+        }
       }
-      return { ...s, monthlyEntries: [...s.monthlyEntries, entry] };
+      return { ...d, completedItems: completed, streak, lastActiveDate };
     });
   }, []);
 
-  const completeMonth = useCallback((month: string, allGreen: boolean) => {
-    const currentStreak = state.streak;
-    setState(s => {
-      const existing = s.monthRecords.find(r => r.month === month);
-      if (existing?.completed) return s;
-      const record = { month, completed: true, completedAt: new Date().toISOString() };
-      const records = existing
-        ? s.monthRecords.map(r => r.month === month ? record : r)
-        : [...s.monthRecords, record];
-      return { ...s, monthRecords: records, streak: s.streak + 1 };
+  const logSession = useCallback((session: Omit<LoggedSession, 'id' | 'date'>) => {
+    setData((d) => {
+      const entry: LoggedSession = {
+        ...session,
+        id: `${Date.now()}`,
+        date: new Date().toISOString(),
+      };
+      return { ...d, sessionLog: [entry, ...d.sessionLog].slice(0, 100) };
     });
-    earnXP(200);
-    if (allGreen) {
-      earnXP(150);
-      unlockAchievement('green_machine');
-    }
-    if (currentStreak + 1 >= 3) {
-      unlockAchievement('streak_master');
-    }
-  }, [earnXP, unlockAchievement, state.streak]);
+  }, []);
 
-  const dismissToast = useCallback(() => setXpToast(null), []);
+  const navigate = useCallback((p: Page) => setPage(p), []);
+  const clearAuthError = useCallback(() => setAuthError(null), []);
 
   return {
-    state,
-    xpToast,
-    dismissToast,
+    user,
+    data,
+    page,
+    authError,
+    register,
+    login,
+    logout,
+    saveProfile,
+    resetProfile,
+    toggleItem,
+    logSession,
     navigate,
-    earnXP,
-    unlockAchievement,
-    setSalary,
-    setCategories,
-    addDebt,
-    removeDebt,
-    addDebtPayment,
-    setDebtStrategy,
-    setMonthlyEntry,
-    completeMonth,
+    clearAuthError,
   };
 }
+
+export type AppApi = ReturnType<typeof useApp>;
