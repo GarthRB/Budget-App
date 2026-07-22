@@ -13,6 +13,16 @@ import { Profile } from './pages/Profile';
 export function App() {
   const app = useApp();
 
+  // 0. Restoring session from a stored token.
+  if (app.booting) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-400 gap-3">
+        <div className="text-4xl animate-pulse">🎾</div>
+        <p>Loading PadelPath…</p>
+      </div>
+    );
+  }
+
   // 1. Not logged in -> auth gate (login required).
   if (!app.user) {
     return (
@@ -20,6 +30,7 @@ export function App() {
         onLogin={app.login}
         onRegister={app.register}
         error={app.authError}
+        busy={app.busy}
         clearError={app.clearAuthError}
       />
     );

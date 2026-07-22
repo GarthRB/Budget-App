@@ -97,7 +97,6 @@ export interface Profile {
 export interface User {
   username: string;
   displayName: string;
-  passHash: string;
   createdAt: string;
 }
 

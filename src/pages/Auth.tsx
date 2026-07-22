@@ -5,11 +5,13 @@ export function Auth({
   onLogin,
   onRegister,
   error,
+  busy,
   clearError,
 }: {
-  onLogin: (username: string, password: string) => boolean;
-  onRegister: (username: string, displayName: string, password: string) => boolean;
+  onLogin: (username: string, password: string) => Promise<boolean>;
+  onRegister: (username: string, displayName: string, password: string) => Promise<boolean>;
   error: string | null;
+  busy: boolean;
   clearError: () => void;
 }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -19,8 +21,9 @@ export function Auth({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (mode === 'login') onLogin(username, password);
-    else onRegister(username, displayName, password);
+    if (busy) return;
+    if (mode === 'login') void onLogin(username, password);
+    else void onRegister(username, displayName, password);
   }
 
   function switchMode(m: 'login' | 'register') {
@@ -87,8 +90,8 @@ export function Auth({
 
             {error && <p className="text-sm text-red-400">{error}</p>}
 
-            <Button type="submit" className="w-full">
-              {mode === 'login' ? 'Log in' : 'Create my account'}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create my account'}
             </Button>
           </form>
 
